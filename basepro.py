@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="Base Token Detective",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # --- TASARIM ---
@@ -18,16 +18,21 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+    /* Mobilde dil kutusunu güzelleştir */
+    div[data-testid="stSelectbox"] > div > div {
+        background-color: #262730;
+        color: white;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # --- 2. DİL DESTEĞİ (5 DİL) ---
 LANGUAGES = {
-    "Türkçe": "tr",
-    "English": "en",
-    "中文 (Chinese)": "zh",
-    "한국어 (Korean)": "ko",
-    "Русский (Russian)": "ru"
+    "🇹🇷 Türkçe": "tr",
+    "🇬🇧 English": "en",
+    "🇨🇳 中文": "zh",
+    "🇰🇷 한국어": "ko",
+    "🇷🇺 Русский": "ru"
 }
 
 TEXTS = {
@@ -199,24 +204,29 @@ def calculate_score(dex, sec, txt):
 
     return min(max(score, 0), 100), logs
 
-# --- 4. ARAYÜZ ---
+# --- 4. ARAYÜZ (MOBİL DOSTU) ---
 
-# Sidebar Dil Seçimi
-with st.sidebar:
-    st.header("🌐 Language")
-    selected_lang = st.selectbox("Select Language", list(LANGUAGES.keys()))
-    lang_code = LANGUAGES[selected_lang]
-    t = TEXTS[lang_code] # Seçilen dilin metinlerini al
+# ÜST KISIM (Header + Dil Seçimi Yan Yana)
+# Mobilde üst üste, bilgisayarda yan yana görünür
+top_col1, top_col2 = st.columns([3, 1])
 
-# Başlık Alanı
-c1, c2 = st.columns([1, 10])
-with c1:
-    st.image("https://cryptologos.cc/logos/base-base-logo.png", width=60)
-with c2:
-    st.title(t["title"])
-    st.caption(t["subtitle"])
+with top_col1:
+    # Logo ve Başlık
+    logo_col, title_col = st.columns([1, 5])
+    with logo_col:
+        st.image("https://cryptologos.cc/logos/base-base-logo.png", width=50)
+    with title_col:
+        st.subheader("Base Token Detective")
+
+with top_col2:
+    # DİL SEÇİMİ (ARTIK GİZLİ DEĞİL, BURADA)
+    selected_lang = st.selectbox("Language / Dil", list(LANGUAGES.keys()), label_visibility="collapsed")
+
+lang_code = LANGUAGES[selected_lang]
+t = TEXTS[lang_code]
 
 # Arama
+st.markdown("---")
 col_s1, col_s2 = st.columns([4, 1])
 with col_s1:
     query = st.text_input("Search", placeholder=t["search_ph"], label_visibility="collapsed")
@@ -299,3 +309,4 @@ if btn and query:
             st.error(t["error_chain"])
         else:
             st.error(t["error_404"])
+            
