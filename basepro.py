@@ -1,121 +1,35 @@
 import streamlit as st
 import requests
-import plotly.graph_objects as go
-import pandas as pd
+import streamlit.components.v1 as components # Grafiği gömmek için gerekli
 from datetime import datetime
 
 # --- 1. AYARLAR ---
 st.set_page_config(
-    page_title="Base Token Detective Global",
+    page_title="Base Token Detective Pro",
     page_icon="🛡️",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
-# --- TASARIM (Gizli Menüler & Kartlar) ---
+# Arka plan ve kart tasarımları
 st.markdown("""
 <style>
-    .metric-card {background-color: #0E1117; border: 1px solid #262730; padding: 20px; border-radius: 10px;}
+    .metric-card {background-color: #1E1E1E; border: 1px solid #333; padding: 15px; border-radius: 10px; margin-bottom: 10px;}
+    .score-high {color: #00FF00; font-weight: bold;}
+    .score-med {color: #FFA500; font-weight: bold;}
+    .score-low {color: #FF0000; font-weight: bold;}
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- DİL SEÇENEKLERİ (5 DİL) ---
-LANGUAGES = {
-    "Türkçe": "tr",
-    "English": "en",
-    "中文 (Chinese)": "zh",
-    "한국어 (Korean)": "ko",
-    "Русский (Russian)": "ru"
-}
-
-TEXTS = {
-    "tr": {
-        "title": "🛡️ Base Token Dedektifi",
-        "search": "Token Sembolü (Örn: AERO, BRETT)",
-        "btn": "Analiz Et",
-        "score": "Güven Skoru",
-        "tab1": "📊 Genel Bakış & Grafik",
-        "tab2": "🛡️ Güvenlik Durumu",
-        "tab3": "🌍 Proje Kimliği",
-        "date": "Çıkış Tarihi",
-        "risk": "RİSKLİ",
-        "safe": "GÜVENLİ",
-        "loading": "Blockchain taranıyor...",
-        "honeypot": "🚨 HONEYPOT! (SATILAMAZ)",
-        "safe_honeypot": "✅ Satış Açık (Honeypot Değil)"
-    },
-    "en": {
-        "title": "🛡️ Base Token Detective",
-        "search": "Token Symbol (e.g., AERO, BRETT)",
-        "btn": "Analyze",
-        "score": "Trust Score",
-        "tab1": "📊 Overview & Chart",
-        "tab2": "🛡️ Security Status",
-        "tab3": "🌍 Project Identity",
-        "date": "Launch Date",
-        "risk": "RISKY",
-        "safe": "SAFE",
-        "loading": "Scanning blockchain...",
-        "honeypot": "🚨 HONEYPOT! (CANNOT SELL)",
-        "safe_honeypot": "✅ Tradable (Not Honeypot)"
-    },
-    "zh": {
-        "title": "🛡️ Base 代币侦探",
-        "search": "代币符号 (例如: AERO)",
-        "btn": "分析",
-        "score": "信任评分",
-        "tab1": "📊 概览",
-        "tab2": "🛡️ 安全状态",
-        "tab3": "🌍 项目身份",
-        "date": "发布日期",
-        "risk": "风险",
-        "safe": "安全",
-        "loading": "正在扫描...",
-        "honeypot": "🚨 蜜罐! (无法出售)",
-        "safe_honeypot": "✅ 可交易 (非蜜罐)"
-    },
-    "ko": {
-        "title": "🛡️ Base 토큰 탐정",
-        "search": "토큰 심볼 (예: AERO)",
-        "btn": "분석하기",
-        "score": "신뢰 점수",
-        "tab1": "📊 개요 & 차트",
-        "tab2": "🛡️ 보안 상태",
-        "tab3": "🌍 프로젝트 정보",
-        "date": "출시일",
-        "risk": "위험",
-        "safe": "안전",
-        "loading": "블록체인 스캔 중...",
-        "honeypot": "🚨 허니팟! (판매 불가)",
-        "safe_honeypot": "✅ 거래 가능 (허니팟 아님)"
-    },
-    "ru": {
-        "title": "🛡️ Base Токен Детектив",
-        "search": "Символ токена (напр. AERO)",
-        "btn": "Анализировать",
-        "score": "Оценка доверия",
-        "tab1": "📊 Обзор и График",
-        "tab2": "🛡️ Безопасность",
-        "tab3": "🌍 О проекте",
-        "date": "Дата запуска",
-        "risk": "РИСК",
-        "safe": "БЕЗОПАСНО",
-        "loading": "Сканирование блокчейна...",
-        "honeypot": "🚨 ХАНИПОТ! (Продать нельзя)",
-        "safe_honeypot": "✅ Торговля доступна"
-    }
-}
-
-# --- FONKSİYONLAR ---
+# --- 2. FONKSİYONLAR ---
 def search_token(query):
     try:
         url = f"https://api.dexscreener.com/latest/dex/search?q={query}"
         data = requests.get(url).json()
         if not data.get("pairs"): return None
-        # Base ağındaki en likit çifti bul
         base_pairs = [p for p in data["pairs"] if p.get("chainId") == "base"]
         if not base_pairs: return "wrong_chain"
         return sorted(base_pairs, key=lambda x: x.get("liquidity", {}).get("usd", 0), reverse=True)[0]
@@ -127,144 +41,155 @@ def check_security(address):
         return requests.get(url).json().get("result", {}).get(address.lower(), {})
     except: return {}
 
-def create_chart(dex_data):
-    changes = dex_data.get("priceChange", {})
-    periods = ["m5", "h1", "h6", "h24"]
-    values = [changes.get(p, 0) for p in periods]
-    labels = ["5m", "1H", "6H", "24H"]
-    colors = ['#00ff00' if v > 0 else '#ff0000' for v in values]
-    
-    fig = go.Figure(data=[go.Bar(x=labels, y=values, marker_color=colors)])
-    fig.update_layout(
-        title="Momentum (%)",
-        template="plotly_dark",
-        paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='rgba(0,0,0,0)',
-        height=300,
-        margin=dict(l=0, r=0, t=40, b=0)
-    )
-    return fig
-
 def calculate_score(dex, sec):
-    score = 0
-    reasons = []
-    
-    # 1. HONEYPOT
+    score = 50 # Başlangıç puanı
+    logs = []  # Puan detaylarını buraya yazacağız
+
+    # 1. HONEYPOT (Ölümcül Hata)
     if sec.get("is_honeypot", "0") == "1":
-        return 0, ["Honeypot"]
-    
-    # 2. VERGİLER (Hesaplanıyor ama GÖSTERİLMİYOR)
-    buy = float(sec.get("buy_tax", 0) or 0) * 100
-    sell = float(sec.get("sell_tax", 0) or 0) * 100
-    if buy > 10 or sell > 10: pass # Puan verme
-    else: score += 20
-    
-    # 3. LİKİDİTE
+        return 0, ["🚨 KRİTİK: Token Honeypot! (Satılamaz)"]
+    else:
+        score += 10
+        logs.append("✅ Honeypot Değil (+10)")
+
+    # 2. LİKİDİTE DURUMU
     liq = dex.get("liquidity", {}).get("usd", 0)
-    if liq > 200000: score += 30
-    elif liq > 50000: score += 15
+    if liq > 100000:
+        score += 20
+        logs.append(f"✅ Likidite Çok İyi (${liq:,.0f}) (+20)")
+    elif liq > 20000:
+        score += 10
+        logs.append(f"✅ Likidite Yeterli (${liq:,.0f}) (+10)")
+    else:
+        score -= 20
+        logs.append(f"⚠️ Likidite Çok Düşük (${liq:,.0f}) (-20)")
+
+    # 3. VERGİLER (TAX)
+    buy_tax = float(sec.get("buy_tax", 0) or 0) * 100
+    sell_tax = float(sec.get("sell_tax", 0) or 0) * 100
     
-    # 4. TOKEN YAŞI
+    if buy_tax > 10 or sell_tax > 10:
+        score -= 30
+        logs.append(f"⚠️ Yüksek Vergi (Al:%{buy_tax:.0f} Sat:%{sell_tax:.0f}) (-30)")
+    elif buy_tax < 5 and sell_tax < 5:
+        score += 10
+        logs.append("✅ Düşük Vergi Oranları (+10)")
+
+    # 4. SOSYAL MEDYA
+    socials = dex.get("info", {}).get("socials", [])
+    if socials:
+        score += 10
+        logs.append(f"✅ {len(socials)} Sosyal Medya Hesabı Var (+10)")
+    else:
+        score -= 10
+        logs.append("⚠️ Sosyal Medya Hesabı Yok (-10)")
+
+    # 5. YAŞ (Token Eskiliği)
     created_at = dex.get("pairCreatedAt", 0)
     if created_at:
-        age_days = (datetime.now().timestamp() * 1000 - created_at) / (1000 * 60 * 60 * 24)
-        if age_days > 30: score += 20
-    
-    # 5. SOSYAL MEDYA
-    if dex.get("info", {}).get("socials"): score += 30
-    
-    return min(score, 100), reasons
+        days_old = (datetime.now().timestamp() * 1000 - created_at) / (1000 * 60 * 60 * 24)
+        if days_old > 30:
+            logs.append(f"✅ Token Oturmuş ({int(days_old)} günlük)")
+        else:
+            logs.append(f"ℹ️ Token Yeni ({int(days_old)} günlük)")
 
-# --- ARAYÜZ ---
-with st.sidebar:
-    st.header("🌐 Language / Dil")
-    lang_key = st.selectbox("", list(LANGUAGES.keys()))
-    lang = LANGUAGES[lang_key]
-    txt = TEXTS.get(lang, TEXTS["en"])
+    return min(max(score, 0), 100), logs
 
-# LOGO VE BAŞLIK
+# --- 3. ARAYÜZ (FRONTEND) ---
+
+# Üst Başlık
 c1, c2 = st.columns([1, 10])
 with c1:
     st.image("https://cryptologos.cc/logos/base-base-logo.png", width=60)
 with c2:
-    st.title(txt["title"])
+    st.title("Base Token Dedektifi")
+    st.caption("Binance Tarzı Grafik & Detaylı Güvenlik Analizi")
 
-# ARAMA
-col_search, col_btn = st.columns([4, 1])
-with col_search:
-    query = st.text_input(txt["search"], label_visibility="collapsed", placeholder="BRETT...")
-with col_btn:
-    scan_btn = st.button(txt["btn"], use_container_width=True, type="primary")
+# Arama Çubuğu
+col_s1, col_s2 = st.columns([4, 1])
+with col_s1:
+    query = st.text_input("Token Ara", placeholder="Örn: DEGEN, BRETT, AERO...", label_visibility="collapsed")
+with col_s2:
+    btn = st.button("ANALİZ ET 🚀", type="primary", use_container_width=True)
 
-if scan_btn and query:
-    with st.spinner(txt["loading"]):
+if btn and query:
+    with st.spinner("Piyasalar ve Kontratlar Taranıyor..."):
         dex_data = search_token(query)
         
         if dex_data and dex_data != "wrong_chain":
-            addr = dex_data.get("baseToken", {}).get("address")
+            addr = dex_data["baseToken"]["address"]
             sec_data = check_security(addr)
-            score, reasons = calculate_score(dex_data, sec_data)
+            score, score_logs = calculate_score(dex_data, sec_data)
             
-            # --- ÜST KART ---
-            info = dex_data.get("info", {})
-            img_url = info.get("imageUrl", "https://cryptologos.cc/logos/base-base-logo.png")
-            creation_date = "---"
-            if dex_data.get("pairCreatedAt"):
-                creation_date = datetime.fromtimestamp(dex_data["pairCreatedAt"] / 1000).strftime('%d.%m.%Y')
-
-            head1, head2 = st.columns([1, 5])
-            with head1:
-                st.image(img_url, width=100)
-            with head2:
-                st.subheader(f"{dex_data['baseToken']['name']} ({dex_data['baseToken']['symbol']})")
-                st.caption(f"Contract: {addr}")
-                st.caption(f"📅 {txt['date']}: {creation_date}")
-
-            # --- METRİKLER ---
-            kpi1, kpi2, kpi3 = st.columns(3)
-            price = float(dex_data.get("priceUsd", 0))
-            kpi1.metric("Price", f"${price:.6f}", f"%{dex_data['priceChange']['h24']}")
-            kpi2.metric("Liquidity", f"${dex_data['liquidity']['usd']:,.0f}")
-            
-            # Skor Rengi
-            score_color = "normal" if score >= 80 else "inverse"
-            kpi3.metric(txt["score"], f"{score}/100")
-
+            # --- TOKEN KİMLİĞİ ---
             st.markdown("---")
-
-            # --- SEKMELER ---
-            tab1, tab2, tab3 = st.tabs([txt["tab1"], txt["tab2"], txt["tab3"]])
-
-            with tab1: # GRAFİK
-                st.plotly_chart(create_chart(dex_data), use_container_width=True)
-                if score < 50: st.error(f"🚨 {txt['risk']}")
-                else: st.success(f"✅ {txt['safe']}")
-
-            with tab2: # GÜVENLİK (Vergiler Gizli)
-                # Sadece Honeypot ve Genel Durum Gösterilir
-                if sec_data.get("is_honeypot") == "1":
-                    st.error(txt["honeypot"])
-                else:
-                    st.success(txt["safe_honeypot"])
+            head_col1, head_col2, head_col3 = st.columns([1, 3, 2])
+            
+            with head_col1:
+                img = dex_data.get("info", {}).get("imageUrl", "https://cryptologos.cc/logos/base-base-logo.png")
+                st.image(img, width=100)
+            
+            with head_col2:
+                st.subheader(f"{dex_data['baseToken']['name']} ({dex_data['baseToken']['symbol']})")
+                st.code(addr)
                 
-                if sec_data.get("owner_change_balance") == "0":
-                    st.info("✅ Owner cannot change balance.")
-                
-                # Vergi oranları burada yazmıyor artık!
+            with head_col3:
+                price = float(dex_data.get("priceUsd", 0))
+                change = dex_data["priceChange"]["h24"]
+                color = "green" if change > 0 else "red"
+                st.markdown(f"### ${price:.6f}")
+                st.markdown(f":{color}[24s Değişim: %{change}]")
 
-            with tab3: # LİNKLER
-                links = []
-                if info.get('websites'):
-                    for w in info['websites']: links.append(f"[Web]({w['url']})")
-                if info.get('socials'):
-                    for s in info['socials']: links.append(f"[{s['type'].capitalize()}]({s['url']})")
+            # --- ANA EKRAN (SOL: GRAFİK, SAĞ: SKOR) ---
+            st.markdown("---")
+            col_chart, col_score = st.columns([2, 1])
+
+            with col_chart:
+                st.subheader("📊 Canlı Borsa Grafiği")
+                # BURADA DEXSCREENER'IN GERÇEK GRAFİĞİNİ GÖMÜYORUZ
+                # iframe yüksekliğini artırdım, tam ekran hissi versin diye
+                pair_addr = dex_data["pairAddress"]
+                iframe_url = f"https://dexscreener.com/base/{pair_addr}?embed=1&theme=dark&trades=0&info=0"
+                components.iframe(iframe_url, height=500)
+
+            with col_score:
+                st.subheader("🛡️ Güvenlik Raporu")
                 
-                if links:
-                    st.markdown(" | ".join(links))
-                else:
-                    st.warning("-")
+                # Skor Göstergesi
+                score_color = "#00FF00" if score >= 80 else "#FFA500" if score >= 50 else "#FF0000"
+                st.markdown(
+                    f"""
+                    <div style="text-align: center; border: 2px solid {score_color}; padding: 20px; border-radius: 15px; background-color: #262730;">
+                        <h1 style="color: {score_color}; margin: 0;">{score}/100</h1>
+                        <p style="margin: 0;">GÜVEN SKORU</p>
+                    </div>
+                    """, 
+                    unsafe_allow_html=True
+                )
+                
+                st.write("") # Boşluk
+                st.markdown("### 📝 Analiz Detayları")
+                
+                # Detayları madde madde yazdır
+                for log in score_logs:
+                    st.write(log)
+
+            # --- ALT BİLGİLER ---
+            st.markdown("---")
+            st.subheader("🌍 Proje Linkleri")
+            info = dex_data.get("info", {})
+            links = []
+            if info.get('websites'):
+                for w in info['websites']: links.append(f"[🌐 Web Sitesi]({w['url']})")
+            if info.get('socials'):
+                for s in info['socials']: links.append(f"[{s['type'].capitalize()}]({s['url']})")
+            
+            if links:
+                st.markdown(" | ".join(links))
+            else:
+                st.info("Sosyal medya bağlantısı bulunamadı.")
 
         elif dex_data == "wrong_chain":
-            st.warning("Token not on Base chain.")
+            st.error("Bu token var ama Base ağında değil.")
         else:
-            st.error("Token not found.")
+            st.error("Token bulunamadı. İsmi doğru yazdın mı?")
